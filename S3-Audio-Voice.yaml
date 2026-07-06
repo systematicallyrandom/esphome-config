@@ -27,7 +27,7 @@
 # =============================================================================
 
 substitutions:
-  name: "waveshare-s3-audio-voice-852a1c"
+  name: "waveshare-s3-audio-voice"
   friendly_name: "S3 Audio Voice"
 
   # --- pin map (edit only if your board revision differs) ---
@@ -47,12 +47,13 @@ substitutions:
   mclk_multiple: "256"
 
 packages:
-  # Your shared base config. Rename if your file is `_common.yaml`.
+  # Your shared base config.
   common: !include .common.yaml
 
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
   min_version: 2025.8.0
   on_boot:
     - priority: -100
