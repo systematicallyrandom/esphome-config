@@ -27,7 +27,7 @@
 # =============================================================================
 
 substitutions:
-  name: "waveshare-s3-audio-voice"
+  name: "waveshare-s3-audio-voice-852a1c"
   friendly_name: "S3 Audio Voice"
 
   # --- pin map (edit only if your board revision differs) ---
@@ -47,13 +47,12 @@ substitutions:
   mclk_multiple: "256"
 
 packages:
-  # Your shared base config.
+  # Your shared base config. Rename if your file is `_common.yaml`.
   common: !include .common.yaml
 
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  name_add_mac_suffix: true
   min_version: 2025.8.0
   on_boot:
     - priority: -100
@@ -199,6 +198,23 @@ media_player:
           id: media_mixing_input
           decibel_reduction: 20
           duration: 0.0s
+      # Shared I2S bus: give the announcement priority over wake-word
+      # listening instead of letting it retry against a busy bus. If the
+      # mic is only idle-listening for a wake word, this frees it instantly.
+      # If Assist is actually mid-conversation, don't yank the mic away from
+      # it — wait (with a safety timeout) for that to finish on its own.
+      - if:
+          condition:
+            microphone.is_capturing:
+          then:
+            - if:
+                condition: { micro_wake_word.is_running: }
+                then:
+                  - micro_wake_word.stop:
+            - wait_until:
+                condition:
+                  not: { voice_assistant.is_running: }
+                timeout: 10s
     on_state:
       - if:
           condition:
@@ -210,6 +226,15 @@ media_player:
                 id: media_mixing_input
                 decibel_reduction: 0
                 duration: 1.0s
+            # Announcement (or media) fully finished and Assist isn't using
+            # the mic — hand the shared bus back to wake-word listening.
+            - if:
+                condition:
+                  and:
+                    - not: { micro_wake_word.is_running: }
+                    - switch.is_off: mic_mute
+                then:
+                  - micro_wake_word.start:
     files:
       - id: snd_wake
         file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/wake_word_triggered.flac
