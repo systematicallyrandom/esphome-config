@@ -57,6 +57,14 @@ esphome:
   on_boot:
     - priority: -100
       then:
+        # Mute the DAC's analog output FIRST, before anything else touches
+        # I2C/I2S. The TCA9555 amp-enable switch below defaults ON
+        # (restore_mode: RESTORE_DEFAULT_ON) so the amp is always live --
+        # muting at the codec (ES8311 register, not a GPIO) is what actually
+        # silences boot-time / reconnect transients instead of letting them
+        # through as an audible pop.
+        - audio_dac.mute_on:
+            id: dac_spk
         # Light the ring FIRST so a bad ADC can't stop us reaching it.
         # Do NOT touch the ES7210 here: calling set_mic_gain() before the
         # codec is up (e.g. if it failed I2C init) dereferences an invalid
@@ -290,10 +298,20 @@ voice_assistant:
   volume_multiplier: 1.0
 
   on_client_connected:
+    # Let the I2S/API reconnect settle before letting audio back through --
+    # this is the transition that pops on HA restart if the DAC is live.
+    - delay: 300ms
+    - audio_dac.mute_off:
+        id: dac_spk
     - micro_wake_word.start:
     - lambda: id(va_phase) = 1;   // idle / ready
     - script.execute: control_leds
   on_client_disconnected:
+    # Mute at the codec BEFORE tearing down voice_assistant/micro_wake_word --
+    # this is what actually stops the HA-restart pop; those two stops alone
+    # don't touch the DAC, so the amp stays live through the teardown glitch.
+    - audio_dac.mute_on:
+        id: dac_spk
     - voice_assistant.stop:
     - micro_wake_word.stop:
     - lambda: id(va_phase) = 10;  // not ready
